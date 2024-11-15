@@ -1,3 +1,5 @@
+import CustomActions from "./CustomActions";
+
 import {
   StyleSheet,
   View,
@@ -5,8 +7,15 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+
 import { useState, useEffect } from "react";
-import { GiftedChat, Bubble, InputToolbar } from "react-native-gifted-chat";
+import {
+  GiftedChat,
+  Bubble,
+  InputToolbar,
+ 
+} from "react-native-gifted-chat";
+
 import {
   collection,
   addDoc,
@@ -14,10 +23,13 @@ import {
   query,
   orderBy,
 } from "firebase/firestore";
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const Chat = ({ route, navigation, db, isConnected }) => {
-  const {userID, name, selectedColor} = route.params; // Get user ID, name and color from route
+
+
+const Chat = ({ route, navigation, db, isConnected, storage }) => {
+  const { userID, name, selectedColor } = route.params; // Get user ID, name and background color from route
   const [messages, setMessages] = useState([]);
 
   let unsubscribe;
@@ -59,12 +71,14 @@ const Chat = ({ route, navigation, db, isConnected }) => {
           const data = doc.data();
           return {
             _id: doc.id,
-            createdAt: data.createdAt.toDate(), // Convert Firestore Timestamp to JavaScript Date
             text: data.text,
+            createdAt: data.createdAt.toDate(), // Convert Firestore Timestamp to JavaScript Date
             user: {
-          _id: data.userID,
+              _id: data.user._id,
               name: data.user.name,
             },
+            location: data.location || null, // Include location if it exists
+            image: data.image || null, // Include image file if it exists
           };
         });
 
@@ -83,20 +97,11 @@ const Chat = ({ route, navigation, db, isConnected }) => {
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, [isConnected]); // Ensure useEffect runs when the connection status changes
+  }, [isConnected]); // Trigger useEffect when the connection status changes
 
   // Handle sending new messages
-  const onSend = async (newMessages) => {
-    const message = newMessages[0];
-    try {
-      await addDoc(collection(db, "messages"), {
-        createdAt: new Date(),
-        text: message.text,
-        user: message.user,
-      });
-    } catch (error) {
-      console.error("Error sending message: ", error);
-    }
+  const onSend = (newMessages) => {
+    addDoc(collection(db, "messages"), newMessages[0]);
   };
 
   // Customize the chat bubble style
@@ -130,6 +135,42 @@ const Chat = ({ route, navigation, db, isConnected }) => {
     else return null;
   };
 
+  // Render the custom actions component
+  const renderCustomActions = (props) => {
+    return (
+      <CustomActions
+        {...props}
+        onSend={onSend}
+        userID={userID}
+        name={name}
+        storage={storage}
+      />
+    );
+  };
+
+  // Render the custom view for the map
+  const renderCustomView = (props) => {
+    const { currentMessage } = props;
+    if (currentMessage.location) {
+      return (
+        <View style={styles.mapContainer}>
+          {/* Apply borderRadius and overflow */}
+          <MapView
+            style={styles.map}
+            region={{
+              latitude: currentMessage.location.latitude,
+              longitude: currentMessage.location.longitude,
+              latitudeDelta: 0.0922,
+              longitudeDelta: 0.0421,
+            }}
+          />
+        </View>
+      );
+    }
+
+    return null;
+  };
+
   // Set nav title to user's name
   useEffect(() => {
     navigation.setOptions({ title: name });
@@ -146,11 +187,12 @@ const Chat = ({ route, navigation, db, isConnected }) => {
         messages={messages}
         renderBubble={renderBubble}
         renderInputToolbar={renderInputToolbar}
-        onSend={messages => onSend(messages)}
+        renderActions={renderCustomActions}
+        renderCustomView={renderCustomView}
+        onSend={(newMessages) => onSend(newMessages)}
         user={{
-
-          _id: userID, // Use a fixed user ID (replace with your actual user ID logic)
-          name: name, // Use the name passed in from route.params
+          _id: userID,
+          name: name, // Load from route.params
         }}
       />
       {Platform.OS === "android" ? (
@@ -166,6 +208,16 @@ const Chat = ({ route, navigation, db, isConnected }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  mapContainer: {
+    width: 150,
+    height: 100,
+    borderRadius: 13,
+    margin: 3,
+    overflow: "hidden", // Ensures the map doesn't extend beyond the rounded corners
+  },
+  map: {
+    ...StyleSheet.absoluteFillObject, // Ensures the map fills the container
   },
 });
 
