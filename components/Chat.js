@@ -13,7 +13,7 @@ import {
   GiftedChat,
   Bubble,
   InputToolbar,
- 
+  renderActions,
 } from "react-native-gifted-chat";
 
 import {
@@ -26,7 +26,7 @@ import {
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-
+import MapView from "react-native-maps";
 
 const Chat = ({ route, navigation, db, isConnected, storage }) => {
   const { userID, name, selectedColor } = route.params; // Get user ID, name and background color from route
